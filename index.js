@@ -1,33 +1,34 @@
 import http from 'node:http'; 
-import fs from 'node:fs';
+import fs from 'node:fs/promises';
 
-const server = http.createServer((req, res) => {
-  if (req.url !== '/favicon.ico') {
-    const filePath = (req.url === '/') ? '/index' : req.url;
-    fs.readFile(`.${filePath}.html`, 'utf8', (err, data) => {
-      if (err) {
-        if (err.code === 'ENOENT') {
-          fs.readFile('./404.html', 'utf8', (err, data) => {
-            if (err) {
-              res.writeHead(500, { 'Content-Type': 'text/plain' });
-              res.end('Server Error');
-              return;
-            }
+const server = http.createServer(async (req, res) => {
+  if (req.url === '/favicon.ico') {
+    // skip favicon request that occurs every reload
+    // since we have no icons for now, serve "no content" status code
+    res.writeHead(204);
+    return res.end;
+  }
 
-            res.writeHead(404, { 'Content-Type': 'text/html' });
-            res.end(data);
-          });
-          return;
-        } else {
-          res.writeHead(500, { 'Content-Type': 'text/plain' });
-          res.end('Server Error');
-          return;
-        }
+  const filePath = (req.url === '/') ? '/index' : req.url;
+
+  try {
+    const data = await fs.readFile(`.${filePath}.html`, 'utf8');
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(data);
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      try {
+        const notFound = await fs.readFile('./404.html', 'utf8');
+        res.writeHead(404, { 'Content-Type': 'text/html' });
+        res.end(notFound);
+      } catch {
+        res.writeHead(500, { 'Content-Type': 'text/plain' });
+        res.end('Server Error');
       }
-
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(data);
-    });
+    } else {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Server Error');
+    }
   }
 });
 
